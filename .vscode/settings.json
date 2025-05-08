@@ -1,0 +1,30 @@
+{
+    // Ruta al intérprete de Python del entorno virtual.
+    // Ajusta esta ruta según la ubicación de tu venv.
+    "python.pythonPath": "${workspaceFolder}/venv/bin/python",
+    // Directorios adicionales que el analizador de Python debe incluir.
+    // Esto es útil para reconocer módulos que están fuera de la estructura estándar.
+    "python.analysis.extraPaths": [
+        "./config",
+        "./src"
+    ],
+    // Habilita el linting para resaltar errores y problemas de estilo en el código.
+    "python.linting.enabled": true,
+    // Habilita Flake8 para un análisis más detallado del estilo y calidad del código.
+    "python.linting.flake8Enabled": true,
+    // Habilita MyPy para realizar comprobaciones de tipado estático.
+    "python.linting.mypyEnabled": true,
+    // Formatea el código automáticamente al guardar el archivo.
+    "editor.formatOnSave": true,
+    // Define Black como el formateador de código.
+    // Puedes cambiarlo si prefieres otro formateador.
+    "python.formatting.provider": "black",
+    // Excluye del explorador de archivos carpetas y archivos que no es necesario ver,
+    // como archivos temporales o compilados.
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/*.pyc": true,
+        ".vscode": true,
+        "env": true
+    }
+}

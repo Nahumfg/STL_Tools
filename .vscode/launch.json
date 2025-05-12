@@ -8,7 +8,7 @@
             "program": "${workspaceFolder}/src/main.py",
             "console": "integratedTerminal",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}/src/modules;${workspaceFolder}/config"
+                "PYTHONPATH": "${workspaceFolder}/src/modules;${workspaceFolder}/config;${workspaceFolder}/db;${workspaceFolder}/src/utils"
             }
         }
     ]

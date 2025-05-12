@@ -13,6 +13,7 @@ Utiliza SQLite para almacenar registros que incluyen:
 """
 
 import sqlite3
+import logging
 from sqlite3 import Connection, Cursor, Error
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -24,7 +25,7 @@ from logger_config import setup_logger
 from settings import DB_PATH
 
 # Obtener un logger para este módulo.
-logger = setup_logger(name=__name__, level=sqlite3.DEBUG, log_file="logs/scale_db.log")  # Puedes ajustar el nivel según necesites
+logger = setup_logger(name=__name__, level=logging.DEBUG, log_file="logs/scale_db.log")
 
 class ScaleDB:
     """

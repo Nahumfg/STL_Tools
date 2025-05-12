@@ -13,8 +13,10 @@ from typing import Optional
 
 import pandas as pd
 
-# Importamos la clase ScaleDB que maneja la base de datos
-from db.excel_importer import ScaleDB
+# Importamos la clase ScaleDB que maneja la base de datos.
+# Como scale_db.py se encuentra en el mismo directorio que excel_importer.py,
+# usamos una importación directa.
+from scale_db import ScaleDB
 
 
 def import_scales_from_excel(file_path: str) -> None:

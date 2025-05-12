@@ -1,0 +1,14 @@
+# Dependencias para STL_Tools
+
+# Interfaz gráfica:
+wxPython>=4.1.1
+
+# Gestión y manipulación de archivos STL:
+numpy-stl>=2.16.3
+numpy>=1.21.0
+
+# Importación de escalas desde Excel:
+pandas>=1.3.0
+openpyxl>=3.0.0
+
+python-decouple>=3.8.0

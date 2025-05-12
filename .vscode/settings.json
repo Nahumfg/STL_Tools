@@ -10,7 +10,8 @@
         "./config",
 		"./db",
         "./src",
-        "./src/modules"
+        "./src/modules",
+		"./src/utils"
     ],
     
     // Habilita el linting, lo que ayuda a detectar errores y problemas de estilo.

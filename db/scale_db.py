@@ -13,13 +13,18 @@ Utiliza SQLite para almacenar registros que incluyen:
 """
 
 import sqlite3
-from sqlite3 import Connection, Cursor
+from sqlite3 import Connection, Cursor, Error
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# Importar la configuración de logging desde logger_config.py
+from logger_config import setup_logger
 
 # Importar la configuración para obtener la ruta de la base de datos
 from settings import DB_PATH
 
+# Obtener un logger para este módulo.
+logger = setup_logger(name=__name__, level=sqlite3.DEBUG, log_file="logs/scale_db.log")  # Puedes ajustar el nivel según necesites
 
 class ScaleDB:
     """
@@ -31,9 +36,13 @@ class ScaleDB:
 
     def __init__(self, db_path: Path = DB_PATH) -> None:
         self.db_path = db_path
-        # Conectar a la base de datos SQLite.
-        self.conn: Connection = sqlite3.connect(str(self.db_path))
-        self._create_table()
+        try:
+            self.conn: Connection = sqlite3.connect(str(self.db_path))
+            logger.info("Conexión a la base de datos establecida en %s", self.db_path)
+            self._create_table()
+        except Error as e:
+            logger.exception("Error al conectar con la base de datos: %s", e)
+            raise
 
     def _create_table(self) -> None:
         """
@@ -49,9 +58,14 @@ class ScaleDB:
             notes TEXT
         );
         """
-        cur: Cursor = self.conn.cursor()
-        cur.execute(create_table_sql)
-        self.conn.commit()
+        try:
+            with self.conn:
+                cur: Cursor = self.conn.cursor()
+                cur.execute(create_table_sql)
+                logger.info("Tabla 'scales' verificada/creada correctamente.")
+        except Error as e:
+            logger.exception("Error al crear la tabla 'scales': %s", e)
+            raise
 
     def add_scale(
         self,
@@ -78,13 +92,19 @@ class ScaleDB:
         INSERT INTO scales (object_name, original_scale, desired_scale, conversion_factor, notes)
         VALUES (?, ?, ?, ?, ?);
         """
-        cur: Cursor = self.conn.cursor()
-        cur.execute(
-            insert_sql,
-            (object_name, original_scale, desired_scale, conversion_factor, notes),
-        )
-        self.conn.commit()
-        return cur.lastrowid
+        try:
+            with self.conn:
+                cur: Cursor = self.conn.cursor()
+                cur.execute(
+                    insert_sql,
+                    (object_name, original_scale, desired_scale, conversion_factor, notes),
+                )
+                new_id = cur.lastrowid
+                logger.info("Registro insertado con ID: %d", new_id)
+                return new_id
+        except Error as e:
+            logger.exception("Error al insertar la escala: %s", e)
+            raise Exception(f"Error al insertar la escala: {e}")
 
     def get_scale_by_id(self, scale_id: int) -> Optional[Dict[str, Any]]:
         """
@@ -98,19 +118,25 @@ class ScaleDB:
                                       o None si no se encuentra.
         """
         query_sql = "SELECT * FROM scales WHERE id = ?;"
-        cur: Cursor = self.conn.cursor()
-        cur.execute(query_sql, (scale_id,))
-        row = cur.fetchone()
-        if row:
-            return {
-                "id": row[0],
-                "object_name": row[1],
-                "original_scale": row[2],
-                "desired_scale": row[3],
-                "conversion_factor": row[4],
-                "notes": row[5],
-            }
-        return None
+        try:
+            cur: Cursor = self.conn.cursor()
+            cur.execute(query_sql, (scale_id,))
+            row = cur.fetchone()
+            if row:
+                logger.info("Registro con ID %d recuperado.", scale_id)
+                return {
+                    "id": row[0],
+                    "object_name": row[1],
+                    "original_scale": row[2],
+                    "desired_scale": row[3],
+                    "conversion_factor": row[4],
+                    "notes": row[5],
+                }
+            logger.warning("Registro con ID %d no encontrado.", scale_id)
+            return None
+        except Error as e:
+            logger.exception("Error al recuperar el registro con ID %d: %s", scale_id, e)
+            raise
 
     def get_all_scales(self) -> List[Dict[str, Any]]:
         """
@@ -120,20 +146,25 @@ class ScaleDB:
             List[Dict[str, Any]]: Una lista de diccionarios con cada registro.
         """
         query_sql = "SELECT * FROM scales;"
-        cur: Cursor = self.conn.cursor()
-        cur.execute(query_sql)
-        rows = cur.fetchall()
-        return [
-            {
-                "id": row[0],
-                "object_name": row[1],
-                "original_scale": row[2],
-                "desired_scale": row[3],
-                "conversion_factor": row[4],
-                "notes": row[5],
-            }
-            for row in rows
-        ]
+        try:
+            cur: Cursor = self.conn.cursor()
+            cur.execute(query_sql)
+            rows = cur.fetchall()
+            logger.info("Recuperados %d registros de escalas.", len(rows))
+            return [
+                {
+                    "id": row[0],
+                    "object_name": row[1],
+                    "original_scale": row[2],
+                    "desired_scale": row[3],
+                    "conversion_factor": row[4],
+                    "notes": row[5],
+                }
+                for row in rows
+            ]
+        except Error as e:
+            logger.exception("Error al recuperar todos los registros: %s", e)
+            raise
 
     def update_scale(
         self,
@@ -174,13 +205,19 @@ class ScaleDB:
             values.append(notes)
 
         if not updates:
+            logger.info("No se realizaron cambios para el registro con ID %d.", scale_id)
             return  # No hay cambios a actualizar
 
         update_sql = f"UPDATE scales SET {', '.join(updates)} WHERE id = ?;"
         values.append(scale_id)
-        cur: Cursor = self.conn.cursor()
-        cur.execute(update_sql, tuple(values))
-        self.conn.commit()
+        try:
+            with self.conn:
+                cur: Cursor = self.conn.cursor()
+                cur.execute(update_sql, tuple(values))
+                logger.info("Registro con ID %d actualizado.", scale_id)
+        except Error as e:
+            logger.exception("Error al actualizar el registro con ID %d: %s", scale_id, e)
+            raise
 
     def delete_scale(self, scale_id: int) -> None:
         """
@@ -190,15 +227,25 @@ class ScaleDB:
             scale_id (int): ID del registro a eliminar.
         """
         delete_sql = "DELETE FROM scales WHERE id = ?;"
-        cur: Cursor = self.conn.cursor()
-        cur.execute(delete_sql, (scale_id,))
-        self.conn.commit()
+        try:
+            with self.conn:
+                cur: Cursor = self.conn.cursor()
+                cur.execute(delete_sql, (scale_id,))
+                logger.info("Registro con ID %d eliminado.", scale_id)
+        except Error as e:
+            logger.exception("Error al eliminar el registro con ID %d: %s", scale_id, e)
+            raise
 
     def close(self) -> None:
         """
         Cierra la conexión con la base de datos.
         """
-        self.conn.close()
+        try:
+            self.conn.close()
+            logger.info("Conexión a la base de datos cerrada.")
+        except Error as e:
+            logger.exception("Error al cerrar la conexión a la base de datos: %s", e)
+            raise
 
 
 # Ejemplo de uso:

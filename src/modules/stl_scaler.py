@@ -1,225 +1,62 @@
 #!/usr/bin/env python3
 """
-Módulo: scale_db.py
+Módulo: stl_scaler.py
 
-Este módulo maneja la base de datos destinada a guardar escalas de medida
-de diversos objetos para permitir conversiones de escalas (por ejemplo, de 1:1 a 1:36).
-Utiliza SQLite para almacenar registros que incluyen el nombre del objeto, 
-la escala original, la escala deseada, el factor de conversión correspondiente 
-y notas adicionales si las hubiera.
+Este módulo proporciona la funcionalidad para escalar un modelo STL mediante un factor dado.
+Utiliza la biblioteca numpy-stl para manipular el objeto del modelo STL (mesh.Mesh) de forma uniforme.
+
+Mejoras:
+  - Verificación del tipo de modelo para asegurarnos de que se trata de una instancia de mesh.Mesh.
+  - Validación del factor de escala.
+  - Actualización de las normales (si el objeto posee el método update_normals) tras modificar las coordenadas.
+  - Posibilidad de trabajar en modo inplace o creando una copia.
+  
+El objetivo es facilitar la conversión de escalas (por ejemplo, de 1:1 a 1:36) de manera segura.
 """
 
-import sqlite3
-from sqlite3 import Connection, Cursor
-from pathlib import Path
-from typing import List, Optional, Dict, Any
+from stl import mesh
 
-# Importar la configuración para obtener la ruta de la base de datos
-from settings import DB_PATH
-
-class ScaleDB:
+def scale_model(stl_model: mesh.Mesh, factor: float, inplace: bool = True) -> mesh.Mesh:
     """
-    Clase para interactuar con la base de datos de escalas.
+    Escala un modelo STL por el factor indicado de manera uniforme.
+
+    Args:
+        stl_model (mesh.Mesh): Modelo STL a escalar.
+        factor (float): Factor de escala (debe ser un número > 0).
+        inplace (bool, opcional): Si True, modifica el modelo original.
+                                  Si False, retorna una copia escalada. Por defecto es True.
+
+    Returns:
+        mesh.Mesh: El modelo escalado.
+
+    Raises:
+        TypeError: Si el modelo no es una instancia de mesh.Mesh o si el factor no es numérico.
+        ValueError: Si el factor es menor o igual a 0.
+    """
+    # Verificamos que el factor es numérico
+    if not isinstance(factor, (int, float)):
+        raise TypeError("El factor de escala debe ser un número.")
+    if factor <= 0:
+        raise ValueError("El factor de escala debe ser mayor que cero.")
     
-    Permite crear la tabla 'scales' (si aún no existe) y realizar operaciones
-    de inserción, consulta, actualización y eliminación de registros.
-    """
-    def __init__(self, db_path: Path = DB_PATH) -> None:
-        self.db_path = db_path
-        self.conn: Connection = sqlite3.connect(str(self.db_path))
-        self._create_table()
+    # Verificamos que se trata de un objeto mesh.Mesh
+    if not isinstance(stl_model, mesh.Mesh):
+        raise TypeError("El modelo STL debe ser una instancia de mesh.Mesh.")
 
-    def _create_table(self) -> None:
-        """
-        Crea la tabla 'scales' si no existe.
-        """
-        create_table_sql = """
-        CREATE TABLE IF NOT EXISTS scales (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            object_name TEXT NOT NULL,
-            original_scale TEXT NOT NULL,
-            desired_scale TEXT NOT NULL,
-            conversion_factor REAL NOT NULL,
-            notes TEXT
-        );
-        """
-        cur: Cursor = self.conn.cursor()
-        cur.execute(create_table_sql)
-        self.conn.commit()
+    if inplace:
+        stl_model.vectors *= factor
+        # Si el objeto dispone de update_normals, se actualizan para mantener la coherencia.
+        if hasattr(stl_model, "update_normals"):
+            stl_model.update_normals()
+        return stl_model
+    else:
+        # Se crea una copia del modelo (asegurándonos de copiar los datos)
+        new_model = mesh.Mesh(stl_model.data.copy())
+        new_model.vectors *= factor
+        if hasattr(new_model, "update_normals"):
+            new_model.update_normals()
+        return new_model
 
-    def add_scale(self,
-                  object_name: str,
-                  original_scale: str,
-                  desired_scale: str,
-                  conversion_factor: float,
-                  notes: Optional[str] = None) -> int:
-        """
-        Inserta un nuevo registro en la tabla 'scales'.
-
-        Args:
-            object_name (str): Nombre del objeto (por ejemplo, "Modelo de Auto").
-            original_scale (str): Escala original, como "1:1".
-            desired_scale (str): Escala deseada, por ejemplo "1:36".
-            conversion_factor (float): Factor de conversión (ejemplo, 1/36 para 1:1 a 1:36).
-            notes (Optional[str]): Notas adicionales u observaciones.
-
-        Returns:
-            int: El ID del registro insertado.
-        """
-        insert_sql = """
-        INSERT INTO scales (object_name, original_scale, desired_scale, conversion_factor, notes)
-        VALUES (?, ?, ?, ?, ?);
-        """
-        cur: Cursor = self.conn.cursor()
-        cur.execute(insert_sql, (object_name, original_scale, desired_scale, conversion_factor, notes))
-        self.conn.commit()
-        return cur.lastrowid
-
-    def get_scale_by_id(self, scale_id: int) -> Optional[Dict[str, Any]]:
-        """
-        Recupera un registro de escala por su ID.
-
-        Args:
-            scale_id (int): ID del registro.
-
-        Returns:
-            Optional[Dict[str, Any]]: Un diccionario con los datos del registro o None si no se encuentra.
-        """
-        query_sql = "SELECT * FROM scales WHERE id = ?;"
-        cur: Cursor = self.conn.cursor()
-        cur.execute(query_sql, (scale_id,))
-        row = cur.fetchone()
-        if row:
-            return {
-                "id": row[0],
-                "object_name": row[1],
-                "original_scale": row[2],
-                "desired_scale": row[3],
-                "conversion_factor": row[4],
-                "notes": row[5]
-            }
-        return None
-
-    def get_all_scales(self) -> List[Dict[str, Any]]:
-        """
-        Recupera todos los registros de la tabla 'scales'.
-
-        Returns:
-            List[Dict[str, Any]]: Una lista de diccionarios con cada registro.
-        """
-        query_sql = "SELECT * FROM scales;"
-        cur: Cursor = self.conn.cursor()
-        cur.execute(query_sql)
-        rows = cur.fetchall()
-        result = []
-        for row in rows:
-            result.append({
-                "id": row[0],
-                "object_name": row[1],
-                "original_scale": row[2],
-                "desired_scale": row[3],
-                "conversion_factor": row[4],
-                "notes": row[5]
-            })
-        return result
-
-    def update_scale(self,
-                     scale_id: int,
-                     object_name: Optional[str] = None,
-                     original_scale: Optional[str] = None,
-                     desired_scale: Optional[str] = None,
-                     conversion_factor: Optional[float] = None,
-                     notes: Optional[str] = None) -> None:
-        """
-        Actualiza un registro de escala especificado por su ID.
-
-        Args:
-            scale_id (int): ID del registro a actualizar.
-            object_name (Optional[str]): Nuevo nombre del objeto.
-            original_scale (Optional[str]): Nueva escala original.
-            desired_scale (Optional[str]): Nueva escala deseada.
-            conversion_factor (Optional[float]): Nuevo factor de conversión.
-            notes (Optional[str]): Nuevas notas u observaciones.
-        """
-        updates = []
-        values = []
-        if object_name is not None:
-            updates.append("object_name = ?")
-            values.append(object_name)
-        if original_scale is not None:
-            updates.append("original_scale = ?")
-            values.append(original_scale)
-        if desired_scale is not None:
-            updates.append("desired_scale = ?")
-            values.append(desired_scale)
-        if conversion_factor is not None:
-            updates.append("conversion_factor = ?")
-            values.append(conversion_factor)
-        if notes is not None:
-            updates.append("notes = ?")
-            values.append(notes)
-
-        if not updates:
-            return  # No hay nada por actualizar
-
-        update_sql = f"UPDATE scales SET {', '.join(updates)} WHERE id = ?;"
-        values.append(scale_id)
-        cur: Cursor = self.conn.cursor()
-        cur.execute(update_sql, tuple(values))
-        self.conn.commit()
-
-    def delete_scale(self, scale_id: int) -> None:
-        """
-        Elimina un registro de la tabla 'scales' por su ID.
-
-        Args:
-            scale_id (int): ID del registro a eliminar.
-        """
-        delete_sql = "DELETE FROM scales WHERE id = ?;"
-        cur: Cursor = self.conn.cursor()
-        cur.execute(delete_sql, (scale_id,))
-        self.conn.commit()
-
-    def close(self) -> None:
-        """
-        Cierra la conexión con la base de datos.
-        """
-        self.conn.close()
-
-# Ejemplo de uso:
-if __name__ == "__main__":
-    db = ScaleDB()
-    try:
-        # Ejemplo: insertar una escala para convertir normal (1:1) a escala 1:36.
-        record_id = db.add_scale(
-            object_name="Ejemplo de Modelo Arquitectónico",
-            original_scale="1:1",
-            desired_scale="1:36",
-            conversion_factor=1/36,
-            notes="Escala típica para miniaturas."
-        )
-        print(f"Registro insertado con ID: {record_id}")
-        
-        # Recuperar el registro insertado
-        record = db.get_scale_by_id(record_id)
-        print("\nRegistro recuperado:")
-        print(record)
-        
-        # Listar todos los registros guardados
-        all_records = db.get_all_scales()
-        print("\nTodos los registros de escalas:")
-        for rec in all_records:
-            print(rec)
-
-        # Actualizar el registro (por ejemplo, actualizar notas)
-        db.update_scale(record_id, notes="Actualizado: Modelo arquitectónico a escala 1:36")
-        updated_record = db.get_scale_by_id(record_id)
-        print("\nRegistro actualizado:")
-        print(updated_record)
-
-        # Opcional: eliminar el registro
-        # db.delete_scale(record_id)
-        # print(f"\nRegistro con ID {record_id} eliminado.")
-
-    finally:
-        db.close()
+# Para casos específicos, se podría ampliar la funcionalidad y permitir escalado no uniforme.
+# Por ejemplo, si en el futuro se desea aplicar factores distintos para X, Y y Z,
+# se podría extender este método o crear una nueva función que acepte un tuple (factor_x, factor_y, factor_z).

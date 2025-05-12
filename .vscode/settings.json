@@ -1,26 +1,35 @@
 {
     // Ruta al intérprete de Python del entorno virtual.
-    // Ajusta esta ruta según la ubicación de tu venv.
+    // Ajusta esta ruta según la ubicación real de tu venv.
     "python.pythonPath": "${workspaceFolder}/venv/bin/python",
+    
     // Directorios adicionales que el analizador de Python debe incluir.
-    // Esto es útil para reconocer módulos que están fuera de la estructura estándar.
+    // Se agregan "config", "src" y "src/modules" para asegurar que se encuentren
+    // todos los módulos personalizados, incluidos los del subdirectorio "modules".
     "python.analysis.extraPaths": [
         "./config",
-        "./src"
+		"./db",
+        "./src",
+        "./src/modules"
     ],
-    // Habilita el linting para resaltar errores y problemas de estilo en el código.
+    
+    // Habilita el linting, lo que ayuda a detectar errores y problemas de estilo.
     "python.linting.enabled": true,
-    // Habilita Flake8 para un análisis más detallado del estilo y calidad del código.
+    
+    // Habilita Flake8 para un análisis detallado del estilo y la calidad del código.
     "python.linting.flake8Enabled": true,
-    // Habilita MyPy para realizar comprobaciones de tipado estático.
+    
+    // Habilita MyPy para comprobaciones de tipado estático.
     "python.linting.mypyEnabled": true,
+    
     // Formatea el código automáticamente al guardar el archivo.
     "editor.formatOnSave": true,
-    // Define Black como el formateador de código.
-    // Puedes cambiarlo si prefieres otro formateador.
+    
+    // Define Black como el proveedor de formato de código.
     "python.formatting.provider": "black",
-    // Excluye del explorador de archivos carpetas y archivos que no es necesario ver,
-    // como archivos temporales o compilados.
+    
+    // Excluye del explorador de archivos carpetas y archivos innecesarios,
+    // como __pycache__, archivos compilados y la carpeta .vscode.
     "files.exclude": {
         "**/__pycache__": true,
         "**/*.pyc": true,
